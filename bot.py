@@ -16,7 +16,8 @@ HELP = """🤖 <b>Uptime Monitor</b>
 /status – live status of every site
 /check – check all sites right now
 /report [24h|6h|7d] – pretty report
-/pdf [24h] – PDF report (share with host)
+/pdf [24h] – evidence PDF (share with host)
+/evidence [24h] – PDF + CSV files in one go
 /csv [24h] – CSV files of checks and outages
 
 <b>Speed</b>
@@ -134,7 +135,13 @@ def c_pdf(a):
         path = R.write_pdf(d)
     except ImportError:
         return reply("PDF needs the <code>fpdf2</code> package on the server. See the setup guide, step 'Part 2'.")
-    send_document(path, f"Uptime report · last {R.label(d['hours'])}")
+    send_document(path, f"Evidence report · last {R.label(d['hours'])}")
+
+
+@cmd("evidence")
+def c_evidence(a):
+    c_pdf(a)
+    c_csv(a)
 
 
 @cmd("csv")
@@ -283,6 +290,7 @@ def setup():
         {"command": "report", "description": "Report (e.g. /report 24h)"},
         {"command": "pdf", "description": "PDF report"},
         {"command": "csv", "description": "CSV logs"},
+        {"command": "evidence", "description": "PDF + CSV for the host"},
         {"command": "check", "description": "Check sites now"},
         {"command": "interval", "description": "Change check interval"},
         {"command": "downinterval", "description": "Recheck speed when down"},
