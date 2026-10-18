@@ -1,13 +1,12 @@
 """Website uptime monitor.
   python monitor.py           one run (GitHub Actions): check, and stay while anything is down
-  python monitor.py --daemon  run forever (VPS / Oracle)
+  python monitor.py --daemon  run forever with the Telegram command bot (VPS / Oracle)
   python monitor.py --test    send a test Telegram message and exit
 """
-import csv, json, os, sys, time, urllib.request, urllib.error
+import csv, json, os, sys, threading, time, urllib.request, urllib.error
 from common import *
 
-STATE = os.path.join(DATA, "state.json")
-INCIDENTS = os.path.join(DATA, "incidents.csv")
+META = os.path.join(DATA, "meta.json")
 
 
 def check(url):
@@ -39,19 +38,22 @@ def log_check(site, ok, code, ms, err):
            [now().isoformat(timespec="seconds"), site, int(ok), code, ms, err])
 
 
-def load_state():
+def load_json(path):
     try:
-        return json.load(open(STATE))
+        return json.load(open(path))
     except Exception:
         return {}
 
 
-def save_state(st):
+def save_json(path, obj):
     os.makedirs(DATA, exist_ok=True)
-    json.dump(st, open(STATE, "w"), indent=1)
+    json.dump(obj, open(path, "w"), indent=1)
 
 
 def cycle(st):
+    reload_cfg()
+    if CFG["paused"]:
+        return False
     for site in CFG["sites"]:
         s = st.setdefault(site, {"status": "up"})
         ok, code, ms, err = check(site)
@@ -81,10 +83,38 @@ def cycle(st):
                    [site, s["down_since"], now().isoformat(timespec="seconds"), int(dur), s["reason"]])
             telegram(f"🟢 RECOVERED: {site}\nDown: {local(start)}\nUp: {local(now())}\n"
                      f"Total downtime: {fmt_dur(dur)}")
-            st[site] = {"status": "up"}
-        print(f"{now():%H:%M:%S} {site} {'UP' if ok else 'DOWN'} {code} {ms}ms {err}")
-    save_state(st)
-    return any(v["status"] == "down" for v in st.values())
+            st[site] = s = {"status": "up"}
+        s.update(last_check=now().isoformat(), last_code=code, last_ms=ms, last_err=err)
+        print(f"{now():%H:%M:%S} {site} {'UP' if ok else 'DOWN'} {code} {ms}ms {err}", flush=True)
+    save_json(STATE, st)
+    return any(st[s]["status"] == "down" for s in CFG["sites"])
+
+
+def maybe_daily_report():
+    t = now().astimezone(LOCAL)
+    meta = load_json(META)
+    today = t.strftime("%Y-%m-%d")
+    if "last_report" not in meta:  # first start: begin tomorrow
+        meta["last_report"] = today
+        save_json(META, meta)
+    elif t.hour >= CFG["daily_report_hour"] and meta["last_report"] != today:
+        meta["last_report"] = today
+        save_json(META, meta)
+        import report
+        report.send_report(24, pdf=True)
+
+
+def bot_loop():
+    import bot
+    bot.setup()
+    while True:
+        try:
+            ok = bot.handle_updates(30)
+        except Exception as e:
+            print("bot error:", e, flush=True)
+            ok = False
+        if not ok:
+            time.sleep(5)
 
 
 if __name__ == "__main__":
@@ -93,12 +123,23 @@ if __name__ == "__main__":
         telegram(f"✅ Test message from uptime monitor\nTime: {local(now())}\n"
                  f"Watching: {', '.join(CFG['sites'])}")
         sys.exit()
-    st = load_state()
+    st = load_json(STATE)
     if "--daemon" in sys.argv:
+        threading.Thread(target=bot_loop, daemon=True).start()
         while True:
             down = cycle(st)
-            time.sleep(CFG["down_recheck_seconds"] if down else CFG["normal_interval_seconds"])
+            try:
+                maybe_daily_report()
+            except Exception as e:
+                print("report error:", e, flush=True)
+            WAKE.wait(CFG["down_recheck_seconds"] if down else CFG["normal_interval_seconds"])
+            WAKE.clear()
     else:
+        try:  # GitHub mode: answer any commands sent since the last run
+            import bot
+            bot.handle_updates(0)
+        except Exception as e:
+            print("bot error:", e)
         end = time.time() + CFG["max_job_minutes"] * 60
         while cycle(st) and time.time() < end:
             time.sleep(CFG["down_recheck_seconds"])
