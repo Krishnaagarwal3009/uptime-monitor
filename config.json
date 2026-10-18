@@ -2,6 +2,7 @@
   "sites": [
     "https://projectsaas.in",
     "https://imprest.projectsaas.in"
+    "https://thisdoesnotexist.projectsaas.in"
   ],
   "timeout_seconds": 20,
   "confirm_retries": 2,
