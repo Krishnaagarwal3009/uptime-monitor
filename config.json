@@ -1,0 +1,14 @@
+{
+  "sites": [
+    "https://projectsaas.in",
+    "https://imprest.projectsaas.in"
+  ],
+  "timeout_seconds": 20,
+  "confirm_retries": 2,
+  "confirm_delay_seconds": 20,
+  "normal_interval_seconds": 300,
+  "down_recheck_seconds": 120,
+  "still_down_reminder_minutes": 30,
+  "max_job_minutes": 25,
+  "timezone_offset_hours": 5.5
+}
