@@ -1,6 +1,7 @@
 """Website uptime monitor.
   python monitor.py           one run (GitHub Actions): check, and stay while anything is down
   python monitor.py --daemon  run forever (VPS / Oracle)
+  python monitor.py --test    send a test Telegram message and exit
 """
 import csv, json, os, sys, time, urllib.request, urllib.error
 from common import *
@@ -88,6 +89,10 @@ def cycle(st):
 
 if __name__ == "__main__":
     os.makedirs(DATA, exist_ok=True)
+    if "--test" in sys.argv:
+        telegram(f"✅ Test message from uptime monitor\nTime: {local(now())}\n"
+                 f"Watching: {', '.join(CFG['sites'])}")
+        sys.exit()
     st = load_state()
     if "--daemon" in sys.argv:
         while True:
