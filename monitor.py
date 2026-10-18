@@ -3,10 +3,30 @@
   python monitor.py --daemon  run forever with the Telegram command bot (VPS / Oracle)
   python monitor.py --test    send a test Telegram message and exit
 """
-import csv, json, os, sys, threading, time, urllib.request, urllib.error
+import csv, http, http.client, json, os, socket, ssl, sys, threading, time, urllib.request, urllib.error
 from common import *
 
 META = os.path.join(DATA, "meta.json")
+
+
+def describe(e):
+    """Readable failure name, close to what a browser would show (e.g. ERR_SSL_PROTOCOL_ERROR)."""
+    r = e.reason if isinstance(e, urllib.error.URLError) else e
+    if isinstance(r, (socket.timeout, TimeoutError)) or "timed out" in str(r):
+        return f"TIMEOUT: no response in {CFG['timeout_seconds']}s"
+    if isinstance(r, ssl.SSLCertVerificationError):
+        return f"SSL_CERT_ERROR: {r.verify_message}"
+    if isinstance(r, ssl.SSLError):
+        return f"SSL_PROTOCOL_ERROR: {r.reason or r}"
+    if isinstance(r, ConnectionRefusedError):
+        return "CONNECTION_REFUSED: server refused the connection"
+    if isinstance(r, ConnectionResetError):
+        return "CONNECTION_RESET: server dropped the connection"
+    if isinstance(r, socket.gaierror):
+        return "DNS_FAILURE: domain did not resolve"
+    if isinstance(r, (http.client.RemoteDisconnected, http.client.BadStatusLine, http.client.IncompleteRead)):
+        return "EMPTY_RESPONSE: server closed the connection without replying"
+    return f"{type(r).__name__}: {r}"[:150]
 
 
 def check(url):
@@ -16,9 +36,13 @@ def check(url):
         with urllib.request.urlopen(req, timeout=CFG["timeout_seconds"]) as r:
             code, err = r.status, ""
     except urllib.error.HTTPError as e:
-        code, err = e.code, f"HTTP {e.code}"
+        try:
+            phrase = http.HTTPStatus(e.code).phrase
+        except ValueError:
+            phrase = ""
+        code, err = e.code, f"HTTP {e.code} {phrase}".strip()
     except Exception as e:
-        code, err = 0, f"{type(e).__name__}: {e}"[:150]
+        code, err = 0, describe(e)
     ms = int((time.time() - t0) * 1000)
     return (200 <= code < 400), code, ms, err
 

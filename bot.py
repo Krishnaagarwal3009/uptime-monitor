@@ -116,6 +116,7 @@ def c_check(a):
     out = ["🔎 <b>Checked just now</b>"]
     for site in CFG["sites"]:
         ok, code, ms, err = monitor.check(site)
+        monitor.log_check(site, ok, code, ms, err)  # real data: keep it in the logs
         out.append(f"{'🟢' if ok else '🔴'} {H.escape(R.short(site))} · "
                    + (f"HTTP {code} · {ms} ms" if ok else H.escape(err or f"HTTP {code}")))
     reply("\n".join(out))
