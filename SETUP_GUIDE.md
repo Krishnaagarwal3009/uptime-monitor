@@ -363,7 +363,6 @@ python3 -m venv ~/uptime-monitor/venv
 
 ### 2.3 Point the service at the new Python and restart
 ```
-sudo sed -i 's#ExecStart=/usr/bin/python3 monitor.py --daemon#ExecStart=/home/ubuntu/uptime-monitor/venv/bin/python monitor.py --daemon#' /etc/uptime-monitor.service 2>/dev/null
 sudo sed -i 's#ExecStart=/usr/bin/python3 monitor.py --daemon#ExecStart=/home/ubuntu/uptime-monitor/venv/bin/python monitor.py --daemon#' /etc/systemd/system/uptime-monitor.service
 sudo systemctl daemon-reload
 sudo systemctl restart uptime-monitor
